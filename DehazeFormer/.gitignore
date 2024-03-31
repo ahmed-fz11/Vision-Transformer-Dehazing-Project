@@ -1,14 +1,14 @@
 # Add by user
 .vscode/
 _backup/
-data/
+# data/
 results/
 saved_models/
 logs/
 
-!data/
-data/*
-!data/*.py
+# !data/
+# data/*
+# !data/*.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
