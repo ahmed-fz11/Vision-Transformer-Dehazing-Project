@@ -556,6 +556,7 @@ class DehazeFormer(nn.Module):
 
 		# x = K * x - B + x
 		x = x[:, :, :H, :W]
+		x = F.interpolate(x, size=(64, 64), mode='bilinear', align_corners=False)
 		# print(f"Final shape: {x.shape}")
 		return x
 
@@ -629,9 +630,9 @@ def dehazeformer_l():
 		attn_ratio=[1/4, 1/2, 3/4, 0, 0],
 		conv_type=['Conv', 'Conv', 'Conv', 'Conv', 'Conv'])
 
-# if __name__ == '__main__':
-# 	model = dehazeformer_t()
-# 	shape = (8, 3, 64, 64)
-# 	img = torch.randn(*shape)
-# 	output = model(img)
-# 	print(output.shape)
+if __name__ == '__main__':
+	model = dehazeformer_t()
+	shape = (8, 3, 64, 64)
+	img = torch.randn(*shape)
+	output = model(img)
+	print(output.shape)
