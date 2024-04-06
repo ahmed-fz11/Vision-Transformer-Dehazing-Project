@@ -7,21 +7,30 @@ from torch.nn.init import _calculate_fan_in_and_fan_out
 from timm.models.layers import to_2tuple, trunc_normal_
 from torchvision.models import resnet18, ResNet18_Weights
 
-class CNNFeatureExtractor(nn.Module):
-    def __init__(self, pretrained=True):
-        super(CNNFeatureExtractor, self).__init__()
-        # Load a pre-trained ResNet-18 model with the specified weights
+class CustomizedCNNFeatureExtractor(nn.Module):
+    def __init__(self, pretrained=True, output_channels=256):
+        super(CustomizedCNNFeatureExtractor, self).__init__()
+        # Load a pre-trained ResNet-18 model
         if pretrained:
             weights = ResNet18_Weights.IMAGENET1K_V1
+            self.resnet = resnet18(weights=weights)
         else:
-            weights = None
-        self.resnet = resnet18(weights=weights)
+            self.resnet = resnet18(weights=None)
         
-        # Remove the fully connected layer, global average pooling, and last convolution block
-        self.features = nn.Sequential(*list(self.resnet.children())[:-3])
+        # Remove the fully connected layer and global average pooling
+        self.features = nn.Sequential(*list(self.resnet.children())[:-2])  # Using an earlier cut-off
+        
+        # Optionally add a custom convolutional layer to adjust the number of output channels
+        # Assuming you choose to take the output from an intermediate layer that has more channels
+        self.adjust_channels = nn.Conv2d(in_channels=512, out_channels=output_channels, kernel_size=1)  # Adjust in_channels based on the layer you're cutting off at
+        
+        # Adjusting the stride or using additional pooling could help preserve spatial dimensions
+        self.adaptive_pool = nn.AdaptiveAvgPool2d((32, 32))  # You can specify the output size you want for more control
 
     def forward(self, x):
         x = self.features(x)
+        x = self.adjust_channels(x)  # Adjust channel dimensions
+        x = self.adaptive_pool(x)  # Optionally adjust spatial dimensions
         return x
 	
 
@@ -430,8 +439,8 @@ class DehazeFormer(nn.Module):
 		super(DehazeFormer, self).__init__()
 
 		# Initialize the CNN feature extractor
-		self.cnn_extractor = CustomCNNFeatureExtractor()#CNNFeatureExtractor(pretrained=True)
-		self.channel_adjustment_layer = nn.Conv2d(in_channels=64, out_channels=3, kernel_size=1)
+		self.cnn_extractor = CustomizedCNNFeatureExtractor() #CustomCNNFeatureExtractor()#CNNFeatureExtractor(pretrained=True)
+		self.channel_adjustment_layer = nn.Conv2d(in_channels=256, out_channels=3, kernel_size=1)
 
 		# setting
 		self.patch_size = 4
@@ -440,7 +449,7 @@ class DehazeFormer(nn.Module):
 
 		# split image into non-overlapping patches
 		self.patch_embed = PatchEmbed(
-			patch_size=1, in_chans=64, embed_dim=embed_dims[0], kernel_size=3)
+			patch_size=1, in_chans=256, embed_dim=embed_dims[0], kernel_size=3)
 
 		# backbone
 		self.layer1 = BasicLayer(network_depth=sum(depths), dim=embed_dims[0], depth=depths[0],
@@ -630,9 +639,9 @@ def dehazeformer_l():
 		attn_ratio=[1/4, 1/2, 3/4, 0, 0],
 		conv_type=['Conv', 'Conv', 'Conv', 'Conv', 'Conv'])
 
-if __name__ == '__main__':
-	model = dehazeformer_t()
-	shape = (8, 3, 64, 64)
-	img = torch.randn(*shape)
-	output = model(img)
-	print(output.shape)
+# if __name__ == '__main__':
+# 	model = dehazeformer_t()
+# 	shape = (8, 3, 64, 64)
+# 	img = torch.randn(*shape)
+# 	output = model(img)
+# 	print(output.shape)
