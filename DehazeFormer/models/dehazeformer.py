@@ -431,6 +431,7 @@ class DehazeFormer(nn.Module):
 
 		# Initialize the CNN feature extractor
 		self.cnn_extractor = CustomCNNFeatureExtractor()#CNNFeatureExtractor(pretrained=True)
+		self.channel_adjustment_layer = nn.Conv2d(in_channels=64, out_channels=3, kernel_size=1)
 
 		# setting
 		self.patch_size = 4
@@ -545,13 +546,9 @@ class DehazeFormer(nn.Module):
 		# print(f"Shape after forward features: {feat.shape}")
 		K, B = torch.split(feat, (1, 3), dim=1)
 		# print(f"K: {K.shape}, B: {B.shape}, x: {x.shape}")
-
-		# Assuming x has more channels than needed, and we want to match B's channels (3 in this case)
-		channel_adjustment_layer = nn.Conv2d(in_channels=x.size(1), out_channels=B.size(1), kernel_size=1)
-
-		# Assuming this adjustment layer is part of your model's definition and properly initialized
-		x_adjusted = x.to(dtype=torch.float32)  # Convert x to float32 before passing it through the layer
-		x_adjusted = channel_adjustment_layer(x_adjusted)  # Adjust x to have the same number of channels as B
+  
+		x_adjusted = x.to(dtype=torch.float32)  # Ensure x is float32
+		x_adjusted = self.channel_adjustment_layer(x_adjusted)
 
 		# Now you can perform the operation without dimension mismatch
 		# print(f"K: {K.shape}, B: {B.shape}, x: {x_adjusted.shape}")
