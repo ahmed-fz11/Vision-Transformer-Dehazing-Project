@@ -38,9 +38,9 @@ def train(train_loader, network, criterion, optimizer, scaler):
 
 	for batch in train_loader:
 		source_img = batch['source'].cuda()
-		print(f'Hazy shape: {source_img.shape}')
+		# print(f'Hazy shape: {source_img.shape}')
 		target_img = batch['target'].cuda()
-		print(f'GT shape: {target_img.shape}')
+		# print(f'GT shape: {target_img.shape}')
 
 		with autocast(args.no_autocast):
 			output = network(source_img)
