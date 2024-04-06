@@ -550,7 +550,8 @@ class DehazeFormer(nn.Module):
 		channel_adjustment_layer = nn.Conv2d(in_channels=x.size(1), out_channels=B.size(1), kernel_size=1)
 
 		# Assuming this adjustment layer is part of your model's definition and properly initialized
-		x_adjusted = channel_adjustment_layer(x)  # Adjust x to have the same number of channels as B
+		x_adjusted = x.to(dtype=torch.float32)  # Convert x to float32 before passing it through the layer
+		x_adjusted = channel_adjustment_layer(x_adjusted)  # Adjust x to have the same number of channels as B
 
 		# Now you can perform the operation without dimension mismatch
 		# print(f"K: {K.shape}, B: {B.shape}, x: {x_adjusted.shape}")
