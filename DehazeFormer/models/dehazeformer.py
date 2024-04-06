@@ -5,6 +5,24 @@ import math
 import numpy as np
 from torch.nn.init import _calculate_fan_in_and_fan_out
 from timm.models.layers import to_2tuple, trunc_normal_
+from torchvision.models import resnet18, ResNet18_Weights
+
+class CNNFeatureExtractor(nn.Module):
+    def __init__(self, pretrained=True):
+        super(CNNFeatureExtractor, self).__init__()
+        # Load a pre-trained ResNet-18 model with the specified weights
+        if pretrained:
+            weights = ResNet18_Weights.IMAGENET1K_V1
+        else:
+            weights = None
+        self.resnet = resnet18(weights=weights)
+        
+        # Remove the fully connected layer, global average pooling, and last convolution block
+        self.features = nn.Sequential(*list(self.resnet.children())[:-3])
+
+    def forward(self, x):
+        x = self.features(x)
+        return x
 
 
 class RLN(nn.Module):
@@ -387,6 +405,9 @@ class DehazeFormer(nn.Module):
 				 norm_layer=[RLN, RLN, RLN, RLN, RLN]):
 		super(DehazeFormer, self).__init__()
 
+		# Initialize the CNN feature extractor
+		self.cnn_extractor = CNNFeatureExtractor(pretrained=True)
+
 		# setting
 		self.patch_size = 4
 		self.window_size = window_size
@@ -483,6 +504,8 @@ class DehazeFormer(nn.Module):
 		H, W = x.shape[2:]
 		x = self.check_image_size(x)
 
+		x = self.cnn_extractor(x)
+
 		feat = self.forward_features(x)
 		K, B = torch.split(feat, (1, 3), dim=1)
 
@@ -559,3 +582,10 @@ def dehazeformer_l():
 		num_heads=[2, 4, 6, 1, 1],
 		attn_ratio=[1/4, 1/2, 3/4, 0, 0],
 		conv_type=['Conv', 'Conv', 'Conv', 'Conv', 'Conv'])
+
+# if __name__ == '__main__':
+# 	model = dehazeformer_t()
+# 	shape = (413, 550, 3)
+# 	img = torch.randn(*shape)
+# 	output = model(img)
+# 	print(output.shape)
