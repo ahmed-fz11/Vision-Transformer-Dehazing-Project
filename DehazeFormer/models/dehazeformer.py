@@ -23,6 +23,30 @@ class CNNFeatureExtractor(nn.Module):
     def forward(self, x):
         x = self.features(x)
         return x
+	
+
+class CustomCNNFeatureExtractor(nn.Module):
+    def __init__(self):
+        super(CustomCNNFeatureExtractor, self).__init__()
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm2d(128)
+
+        self.conv3 = nn.Conv2d(128, 128, kernel_size=3, stride=2, padding=1) # Downsample here
+        self.bn3 = nn.BatchNorm2d(128)
+
+        self.conv4 = nn.Conv2d(128, 64, kernel_size=3, stride=1, padding=1)
+        self.bn4 = nn.BatchNorm2d(64)
+
+    def forward(self, x):
+        x = self.relu(self.bn1(self.conv1(x)))
+        x = self.relu(self.bn2(self.conv2(x)))
+        x = self.relu(self.bn3(self.conv3(x))) # Downsample
+        x = self.relu(self.bn4(self.conv4(x)))
+        return x
 
 
 class RLN(nn.Module):
@@ -406,7 +430,7 @@ class DehazeFormer(nn.Module):
 		super(DehazeFormer, self).__init__()
 
 		# Initialize the CNN feature extractor
-		self.cnn_extractor = CNNFeatureExtractor(pretrained=True)
+		self.cnn_extractor = CustomCNNFeatureExtractor()#CNNFeatureExtractor(pretrained=True)
 
 		# setting
 		self.patch_size = 4
@@ -415,7 +439,7 @@ class DehazeFormer(nn.Module):
 
 		# split image into non-overlapping patches
 		self.patch_embed = PatchEmbed(
-			patch_size=1, in_chans=in_chans, embed_dim=embed_dims[0], kernel_size=3)
+			patch_size=1, in_chans=64, embed_dim=embed_dims[0], kernel_size=3)
 
 		# backbone
 		self.layer1 = BasicLayer(network_depth=sum(depths), dim=embed_dims[0], depth=depths[0],
@@ -479,15 +503,21 @@ class DehazeFormer(nn.Module):
 		return x
 
 	def forward_features(self, x):
+		# print("going in patch embed")
 		x = self.patch_embed(x)
+		# print(f"out of patch embed: {x.shape}")
 		x = self.layer1(x)
+		# print("out of layer1")
 		skip1 = x
 
 		x = self.patch_merge1(x)
+		# print(f"out of patch merge 1: {x.shape}")
 		x = self.layer2(x)
+		# print(f"out of layer 2: {x.shape}")
 		skip2 = x
 
 		x = self.patch_merge2(x)
+		# print("out of patch merge 2")
 		x = self.layer3(x)
 		x = self.patch_split1(x)
 
@@ -497,20 +527,38 @@ class DehazeFormer(nn.Module):
 
 		x = self.fusion2([x, self.skip1(skip1)]) + x
 		x = self.layer5(x)
+		# print(f"Shape after layer 5: {x.shape}")
 		x = self.patch_unembed(x)
+		# print(f"Final shape after patch unembed: {x.shape}")
 		return x
 
 	def forward(self, x):
 		H, W = x.shape[2:]
+		# print(f"Height: {H}, Width: {W}")
 		x = self.check_image_size(x)
+		# print(f"Check img size: {x.shape}")
 
 		x = self.cnn_extractor(x)
+		# print(f"Shape after CNN: {x.shape}")
 
 		feat = self.forward_features(x)
+		# print(f"Shape after forward features: {feat.shape}")
 		K, B = torch.split(feat, (1, 3), dim=1)
+		# print(f"K: {K.shape}, B: {B.shape}, x: {x.shape}")
 
-		x = K * x - B + x
+		# Assuming x has more channels than needed, and we want to match B's channels (3 in this case)
+		channel_adjustment_layer = nn.Conv2d(in_channels=x.size(1), out_channels=B.size(1), kernel_size=1)
+
+		# Assuming this adjustment layer is part of your model's definition and properly initialized
+		x_adjusted = channel_adjustment_layer(x)  # Adjust x to have the same number of channels as B
+
+		# Now you can perform the operation without dimension mismatch
+		# print(f"K: {K.shape}, B: {B.shape}, x: {x_adjusted.shape}")
+		x = K * x_adjusted - B + x_adjusted
+
+		# x = K * x - B + x
 		x = x[:, :, :H, :W]
+		# print(f"Final shape: {x.shape}")
 		return x
 
 
@@ -585,7 +633,7 @@ def dehazeformer_l():
 
 # if __name__ == '__main__':
 # 	model = dehazeformer_t()
-# 	shape = (413, 550, 3)
+# 	shape = (8, 3, 64, 64)
 # 	img = torch.randn(*shape)
 # 	output = model(img)
 # 	print(output.shape)
